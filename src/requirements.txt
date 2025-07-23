@@ -1,0 +1,5 @@
+# you can make importing necessary packages easy by 
+# pip installing this entire txt file instead!
+# NOTE: only for python!!
+
+numpy
