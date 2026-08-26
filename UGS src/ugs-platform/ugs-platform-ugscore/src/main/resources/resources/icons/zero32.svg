@@ -1,9 +1,0 @@
-<svg version="1.1" viewBox="0 0 16 16" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <marker id="a" overflow="visible" orient="auto">
-      <path transform="matrix(.4 0 0 .4 4 0)" d="m0 0 5-5-17.5 5 17.5 5z" fill="#353a40" fill-rule="evenodd" stroke="#353a40" stroke-width="1pt"/>
-    </marker>
-  </defs>
-  <path transform="translate(0 -1036.4)" d="m4.4796 1047.7 10.914-10.344" fill="none" marker-start="url(#a)" stroke="#353a40" stroke-width="1.7179"/>
-  <path transform="translate(0 -1036.4)" d="m0.67423 1036.5v15h15.326" fill="none" stroke="#353a40" stroke-dasharray="1.34800734, 1.34800734" stroke-dashoffset="3.6396" stroke-width="1.348"/>
-</svg>
