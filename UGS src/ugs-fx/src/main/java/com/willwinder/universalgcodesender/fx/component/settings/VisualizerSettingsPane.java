@@ -1,0 +1,174 @@
+/*
+    Copyright 2026 Joacim Breiler
+
+    This file is part of Universal Gcode Sender (UGS).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.willwinder.universalgcodesender.fx.component.settings;
+
+import com.willwinder.universalgcodesender.fx.component.BorderedTitledPane;
+import com.willwinder.universalgcodesender.fx.component.SettingsRow;
+import com.willwinder.universalgcodesender.fx.component.visualizer.machine.MachineType;
+import com.willwinder.universalgcodesender.fx.control.SwitchButton;
+import com.willwinder.universalgcodesender.fx.control.UnitTextField;
+import com.willwinder.universalgcodesender.fx.helper.Colors;
+import com.willwinder.universalgcodesender.fx.settings.VisualizerSettings;
+import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.model.Unit;
+import com.willwinder.universalgcodesender.model.UnitValue;
+import javafx.beans.property.FloatProperty;
+import javafx.beans.property.StringProperty;
+import javafx.collections.FXCollections;
+import javafx.geometry.Insets;
+import javafx.scene.Node;
+import javafx.scene.control.ColorPicker;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.util.StringConverter;
+
+
+public class VisualizerSettingsPane extends BorderPane {
+
+    private final VBox settingsGroup;
+
+    public VisualizerSettingsPane() {
+        addTitleSection();
+        settingsGroup = new VBox(32);
+        addMachineCombo();
+        addCameraSettings();
+        addColorSettings();
+        addRulerSettings();
+        addDesignSettings();
+        setCenter(settingsGroup);
+    }
+
+    private void addDesignSettings() {
+        SwitchButton showDesign = new SwitchButton();
+        showDesign.selectedProperty().bindBidirectional(VisualizerSettings.getInstance().showDesignProperty());
+
+        settingsGroup.getChildren().add(new BorderedTitledPane("Design",
+                new VBox(10,
+                        new SettingsRow(Localization.getString("platform.visualizer.design"), showDesign),
+                        createColorSetting("Shape outline color", VisualizerSettings.getInstance().colorDesignShapeOutlineProperty()),
+                        createColorSetting("Shape background color", VisualizerSettings.getInstance().colorDesignShapeBackgroundProperty()),
+                        createColorSetting("Resize handle color", VisualizerSettings.getInstance().colorDesignResizeProperty()),
+                        createColorSetting("Rotation handle color", VisualizerSettings.getInstance().colorDesignRotationProperty()),
+                        createColorSetting("Move handle color", VisualizerSettings.getInstance().colorDesignMoveProperty())
+                )
+        ));
+    }
+
+    private void addColorSettings() {
+        SwitchButton showGcode = new SwitchButton();
+        showGcode.selectedProperty().bindBidirectional(VisualizerSettings.getInstance().showGcodeModelProperty());
+        settingsGroup.getChildren().add(new BorderedTitledPane(Localization.getString("platform.visualizer.gcodeModel"),
+                new VBox(10,
+                        new SettingsRow(Localization.getString("platform.visualizer.model"), showGcode),
+                        createFloatSetting(Localization.getString("platform.visualizer.gcodeModel.lineWidth"), VisualizerSettings.getInstance().lineWidthProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.background"), VisualizerSettings.getInstance().colorBackgroundProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.rapid"), VisualizerSettings.getInstance().colorRapidProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.linear.min.speed"), VisualizerSettings.getInstance().colorFeedMinProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.linear"), VisualizerSettings.getInstance().colorFeedMaxProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.spindle.min.speed"), VisualizerSettings.getInstance().colorSpindleMinProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.spindle.max.speed"), VisualizerSettings.getInstance().colorSpindleMaxProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.arc"), VisualizerSettings.getInstance().colorArcProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.completed"), VisualizerSettings.getInstance().colorCompletedProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.plunge"), VisualizerSettings.getInstance().colorPlungeProperty())
+                )
+        ));
+    }
+
+    private void addRulerSettings() {
+        SwitchButton showRuler = new SwitchButton();
+        showRuler.selectedProperty().bindBidirectional(VisualizerSettings.getInstance().showRulerProperty());
+
+        settingsGroup.getChildren().add(new BorderedTitledPane(Localization.getString("platform.visualizer.ruler"),
+                new VBox(10,
+                        new SettingsRow(Localization.getString("platform.visualizer.ruler.show"), showRuler),
+                        createColorSetting(Localization.getString("platform.visualizer.color.ruler.lines"), VisualizerSettings.getInstance().colorRulerLinesProperty()),
+                        createColorSetting(Localization.getString("platform.visualizer.color.ruler.text"), VisualizerSettings.getInstance().colorRulerTextProperty())
+                )
+        ));
+    }
+
+    private void addMachineCombo() {
+        ComboBox<MachineType> machineTypeComboBox = new ComboBox<>(FXCollections.observableArrayList(MachineType.values()));
+        machineTypeComboBox.valueProperty().addListener((observable, oldValue, newValue) -> VisualizerSettings.getInstance().machineModelProperty().set(newValue.name()));
+        machineTypeComboBox.setValue(MachineType.fromValue(VisualizerSettings.getInstance().machineModelProperty().orElse(MachineType.UNKNOWN.name()).getValue()));
+        machineTypeComboBox.setConverter(new StringConverter<>() {
+
+            @Override
+            public String toString(MachineType machineType) {
+                return machineType.getName();
+            }
+
+            @Override
+            public MachineType fromString(String name) {
+                return MachineType.fromName(name);
+            }
+        });
+
+        SwitchButton checkBox = new SwitchButton();
+        checkBox.selectedProperty().bindBidirectional(VisualizerSettings.getInstance().showMachineProperty());
+
+        settingsGroup.getChildren().add(new BorderedTitledPane(Localization.getString("settings.visualizer.machine"),
+                        new VBox(10,
+                                new SettingsRow("Show", checkBox),
+                                new SettingsRow("Machine model", machineTypeComboBox))
+                )
+        );
+    }
+
+    private void addCameraSettings() {
+        VBox cameraControls = new VBox(10);
+
+        // Parallel (orthographic) camera
+        SwitchButton parallelCamera = new SwitchButton();
+        parallelCamera.selectedProperty().bindBidirectional(
+                VisualizerSettings.getInstance().useParallelCameraProperty()
+        );
+        cameraControls.getChildren().add(new SettingsRow("Use parallel camera", "Switches between perspective (3D) and parallel (2D) camera projection", parallelCamera));
+
+        settingsGroup.getChildren().add(new BorderedTitledPane("Camera", cameraControls));
+    }
+
+    private void addTitleSection() {
+        Label title = new Label(Localization.getString("platform.window.visualizer"));
+        title.setPadding(new Insets(0, 0, 16, 0));
+        title.setFont(Font.font(20));
+        setTop(title);
+    }
+
+    private SettingsRow createColorSetting(String text, StringProperty stringProperty) {
+        Color value = stringProperty.map(Color::web).getValue();
+        ColorPicker colorPicker = new ColorPicker(value);
+        colorPicker.valueProperty().addListener((observable, oldValue, newValue) -> {
+            String value1 = Colors.toWeb(newValue);
+            stringProperty.set(value1);
+        });
+        colorPicker.setMinHeight(28);
+        return new SettingsRow(text, colorPicker);
+    }
+
+    private Node createFloatSetting(String text, FloatProperty floatProperty) {
+        UnitTextField unitTextField = new UnitTextField(new UnitValue(Unit.MM, floatProperty.getValue()), Unit.MM);
+        unitTextField.unitValueProperty().addListener((observable, oldValue, newValue) -> floatProperty.set(newValue.convertTo(Unit.MM).floatValue()));
+        return new SettingsRow(text, unitTextField);
+    }
+}

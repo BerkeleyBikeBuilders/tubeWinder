@@ -1,0 +1,429 @@
+/*
+    Copyright 2016-2020 Will Winder
+
+    This file is part of Universal Gcode Sender (UGS).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.willwinder.universalgcodesender.gcode;
+
+import com.willwinder.universalgcodesender.gcode.GcodeParser.GcodeMeta;
+import com.willwinder.universalgcodesender.gcode.processors.ArcExpander;
+import com.willwinder.universalgcodesender.gcode.processors.CommandLengthProcessor;
+import com.willwinder.universalgcodesender.gcode.processors.CommentProcessor;
+import com.willwinder.universalgcodesender.gcode.processors.DecimalProcessor;
+import com.willwinder.universalgcodesender.gcode.processors.FeedOverrideProcessor;
+import com.willwinder.universalgcodesender.gcode.processors.LineSplitter;
+import com.willwinder.universalgcodesender.gcode.processors.M30Processor;
+import com.willwinder.universalgcodesender.gcode.processors.MeshLeveler;
+import com.willwinder.universalgcodesender.gcode.processors.WhitespaceProcessor;
+import com.willwinder.universalgcodesender.gcode.util.Code;
+import com.willwinder.universalgcodesender.gcode.util.GcodeParserException;
+import com.willwinder.universalgcodesender.gcode.util.GcodeParserUtils;
+import com.willwinder.universalgcodesender.gcode.util.Plane;
+import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.model.Position;
+import static com.willwinder.universalgcodesender.model.UnitUtils.Units.MM;
+import com.willwinder.universalgcodesender.types.GcodeCommand;
+import com.willwinder.universalgcodesender.types.PointSegment;
+import com.willwinder.universalgcodesender.utils.GcodeStreamReader;
+import com.willwinder.universalgcodesender.utils.GcodeStreamWriter;
+import com.willwinder.universalgcodesender.utils.IGcodeStreamReader;
+import com.willwinder.universalgcodesender.utils.IGcodeWriter;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
+import org.junit.Assert;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import org.junit.Test;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.DecimalFormat;
+import java.util.List;
+
+/**
+ *
+ * @author wwinder
+ */
+public class GcodeParserTest {
+    private static final Offset<Double> TOLERANCE = Offset.offset(0.0001);
+
+    private void testCommand(List<GcodeMeta> segments, int numResults, double speed,
+            double x, double y, double z,
+            boolean fastTraversal, boolean zMovement, boolean arc, boolean clockwise,
+            boolean isMetric,
+            int num) {
+        int points = 0;
+        for (GcodeMeta meta : segments) {
+            if (meta.point != null) {
+                points++;
+                PointSegment ps = meta.point;
+                assertEquals(ps.getFeedRate(), speed, 0);
+                assertEquals(x, ps.point().x, 0);
+                assertEquals(y, ps.point().y, 0);
+                assertEquals(z, ps.point().z, 0);
+                assertEquals(fastTraversal, ps.isFastTraverse());
+                assertEquals(zMovement, ps.isZMovement());
+                assertEquals(arc, ps.isArc());
+                if (arc) {
+                    assertEquals(clockwise, ps.isClockwise());
+                }
+                assertEquals(num, ps.getLineNumber());
+                assertEquals(isMetric, ps.isMetric());
+            }
+        }
+
+        assertEquals(numResults, points);
+
+    }
+
+    /**
+     * Test of addCommand method, of class GcodeParser.
+     */
+    @Test
+    public void testAddCommand_String() throws Exception {
+        List<GcodeMeta> results;
+        GcodeParser instance = new GcodeParser();
+
+        results = instance.addCommand("G20");
+        testCommand(results, 0, 150, Double.NaN, Double.NaN, Double.NaN, true, false, false, false, false, 0);
+
+        // X movement with speed
+        results = instance.addCommand("G0X1F150");
+        testCommand(results, 1, 150, 1., Double.NaN, Double.NaN, true, false, false, false, false, 1);
+
+        results = instance.addCommand("G1Y1F250");
+        testCommand(results, 1, 250, 1., 1., Double.NaN, false, false, false, false, false, 2);
+
+        // Use same speed from before
+        results = instance.addCommand("G1Z1");
+        testCommand(results, 1, 250, 1., 1., 1., false, true, false, false, false, 3);
+
+        // Use same G command from before
+        results = instance.addCommand("X2Y2Z2");
+        testCommand(results, 1, 250, 2., 2., 2., false, false, false, false, false, 4);
+
+        results = instance.addCommand("X-0.5Y0Z0");
+        testCommand(results, 1, 250, -0.5, 0., 0., false, false, false, false, false, 5);
+
+        // Clockwise arc!
+        results = instance.addCommand("G2 X0. Y0.5 I0.5 J0. F2.5");
+        testCommand(results, 1, 2.5, 0., 0.5, 0., false, false, true, true, false, 6);
+
+        results = instance.addCommand("X0.5 Y0. I0. J-0.5");
+        testCommand(results, 1, 2.5, 0.5, 0., 0., false, false, true, true, false, 7);
+
+        results = instance.addCommand("X0. Y-0.5 I-0.5 J0.");
+        testCommand(results, 1, 2.5, 0., -0.5, 0., false, false, true, true, false, 8);
+   
+        results = instance.addCommand("X-0.5 Y0. I0. J0.5");
+        testCommand(results, 1, 2.5, -0.5, 0., 0., false, false, true, true, false, 9);
+   
+        // Move up a bit.
+        results = instance.addCommand("G0 Z2");
+        testCommand(results, 1, 2.5, -0.5, 0., 2., true, true, false, false, false, 10);
+
+        // Counter-clockwise arc!
+        results = instance.addCommand("G3 X-0.5 Y0. I0. J0.5");
+        testCommand(results, 1, 2.5, -0.5, 0., 2., false, false, true, false, false, 11);
+
+        results = instance.addCommand("X0. Y-0.5 I-0.5 J0.");
+        testCommand(results, 1, 2.5, 0., -0.5, 2., false, false, true, false, false, 12);
+
+        results = instance.addCommand("X0.5 Y0. I0. J-0.5");
+        testCommand(results, 1, 2.5, 0.5, 0., 2., false, false, true, false, false, 13);
+
+        results = instance.addCommand("X0. Y0.5 I0.5 J0. F2.5");
+        testCommand(results, 1, 2.5, 0., 0.5, 2., false, false, true, false, false, 14);
+    }
+
+    /**
+     * Test of addCommand method, of class GcodeParser.
+     */
+    @Test
+    public void testAddCommand_String_int() throws Exception {
+        GcodeParser instance = new GcodeParser();
+
+        // More or less the same thing as the above test, so just make sure the
+        // line number is applied.
+        List<GcodeMeta> results = instance.addCommand("G20 G0X1F150", 123);
+        testCommand(results, 1, 150, 1., Double.NaN, Double.NaN, true, false, false, false, false, 123);
+    }
+
+    /**
+     * Test of getCurrentPoint method, of class GcodeParser.
+     */
+    @Test
+    public void testGetCurrentState() throws Exception {
+        GcodeParser instance = new GcodeParser();
+
+        instance.addCommand("G17 G21 G90 G94 G54 M0 M5 M9");
+        GcodeState state = instance.getCurrentState();
+        assertEquals(Plane.XY, state.plane);
+        assertTrue(state.isMetric);
+        assertTrue(state.inAbsoluteMode);
+    }
+
+    @Test
+    public void addCommand_shouldParseToolNumber() throws Exception {
+        GcodeParser instance = new GcodeParser();
+
+        instance.addCommand("T3 M6");
+        GcodeState state = instance.getCurrentState();
+
+        assertEquals(3, state.toolNumber);
+    }
+
+    @Test
+    public void addCommand_shouldKeepPreviousToolNumberWhenNotSpecified() throws Exception {
+        GcodeParser instance = new GcodeParser();
+
+        instance.addCommand("T5 M6");
+        instance.addCommand("G0 X10");
+        GcodeState state = instance.getCurrentState();
+
+        assertEquals(5, state.toolNumber);
+    }
+
+    @Test
+    public void testGetCurrentStateWithG38_2() throws Exception {
+        GcodeParser instance = new GcodeParser();
+
+        instance.addCommand("G38.2 G54 G17 G21 G90 G94 M5 M9");
+        GcodeState state = instance.getCurrentState();
+        assertEquals(Plane.XY, state.plane);
+        assertTrue(state.isMetric);
+        assertTrue(state.inAbsoluteMode);
+        assertEquals(Code.G38_2, state.currentMotionMode);
+    }
+
+    /**
+     * Test of addCommandProcessor method, of class GcodeParser.
+     */
+    @Test
+    public void testAddCommandProcessor() {
+        GcodeParser instance = new GcodeParser();
+        instance.addCommandProcessor(new CommentProcessor());
+        assertEquals(1, instance.numCommandProcessors());
+    }
+
+    /**
+     * Test of resetCommandProcessors method, of class GcodeParser.
+     */
+    @Test
+    public void testResetCommandProcessors() {
+        GcodeParser instance = new GcodeParser();
+        instance.addCommandProcessor(new CommentProcessor());
+        assertEquals(1, instance.numCommandProcessors());
+        instance.clearCommandProcessors();
+        assertEquals(0, instance.numCommandProcessors());
+    }
+
+    /**
+     * Test of preprocessCommand method, of class GcodeParser.
+     */
+    @Test
+    public void testPreprocessCommandGood() throws Exception {
+        // Tests:
+        // '(comment)' is removed
+        // '; Comment!' is removed
+        // 'M30' is removed
+        // Decimal truncated to 0.88889
+        // Remove spaces
+        String command = "(comment) G01 X0.888888888888888888 M30; Comment!";
+        GcodeParser instance = new GcodeParser();
+        instance.addCommandProcessor(new CommentProcessor());
+        instance.addCommandProcessor(new DecimalProcessor(5));
+        instance.addCommandProcessor(new M30Processor());
+        instance.addCommandProcessor(new WhitespaceProcessor());
+        instance.addCommandProcessor(new CommandLengthProcessor(50));
+        List<String> result = instance.preprocessCommand(command, instance.getCurrentState());
+        assertEquals(1, result.size());
+        assertEquals("G01X0.88889", result.get(0));
+    }
+
+    @Test
+    public void testPreprocessCommandFeedOverride() throws Exception {
+        // Tests:
+        // '(comment)' is removed
+        // '; Comment!' is removed
+        // 'M30' is removed
+        // Decimal truncated to 0.88889
+        // Remove spaces
+        String command = "(comment) G01 X0.888888888888888888 M30 F100; Comment!";
+        GcodeParser instance = new GcodeParser();
+        instance.addCommandProcessor(new CommentProcessor());
+        instance.addCommandProcessor(new FeedOverrideProcessor(0.));
+        instance.addCommandProcessor(new DecimalProcessor(5));
+        instance.addCommandProcessor(new M30Processor());
+        instance.addCommandProcessor(new WhitespaceProcessor());
+        instance.addCommandProcessor(new CommandLengthProcessor(50));
+        List<String> result = instance.preprocessCommand(command, instance.getCurrentState());
+        assertEquals(1, result.size());
+        assertEquals("G01X0.88889F100", result.get(0));
+
+        instance.clearCommandProcessors();
+        instance.addCommandProcessor(new CommentProcessor());
+        instance.addCommandProcessor(new FeedOverrideProcessor(200.));
+        instance.addCommandProcessor(new DecimalProcessor(5));
+        instance.addCommandProcessor(new M30Processor());
+        instance.addCommandProcessor(new WhitespaceProcessor());
+        instance.addCommandProcessor(new CommandLengthProcessor(50));
+        result = instance.preprocessCommand(command, instance.getCurrentState());
+        assertEquals(1, result.size());
+        assertEquals("G01X0.88889F200.0", result.get(0));
+    }
+
+    @Test
+    public void testPreprocessCommandException() throws Exception {
+        GcodeParser instance = new GcodeParser();
+        instance.addCommandProcessor(new CommentProcessor());
+        // Don't process decimals to make this test easier to create.
+        instance.addCommandProcessor(new DecimalProcessor(0));
+        instance.addCommandProcessor(new M30Processor());
+        instance.addCommandProcessor(new WhitespaceProcessor());
+        instance.addCommandProcessor(new CommandLengthProcessor(50));
+
+        // Shouldn't throw if exactly 50 characters long.
+        final String command = "G01X0.88888888888888888888888888888888888888888888";
+        instance.preprocessCommand(command, instance.getCurrentState());
+
+        // Should throw an exception when it is 51 characters long.
+        Assertions.assertThatThrownBy(() -> instance.preprocessCommand(command + "8", instance.getCurrentState()))
+                .isInstanceOf(GcodeParserException.class);
+    }
+
+    @Test
+    public void autoLevelerProcessorSet() throws Exception {
+        GcodeParser gcp = new GcodeParser();
+        gcp.addCommandProcessor(new CommentProcessor());
+        gcp.addCommandProcessor(new ArcExpander(true, 0.1, new DecimalFormat("#.####", Localization.dfs)));
+        gcp.addCommandProcessor(new LineSplitter(1));
+        Position[][] grid = {
+            { new Position(-5,-5,0, MM), new Position(-5,35,0, MM) },
+            { new Position(35,-5,0, MM), new Position(35,35,0, MM) }
+        };
+        gcp.addCommandProcessor(new MeshLeveler(0, grid));
+
+        Path output = Files.createTempFile("autoleveler_processor_set_test.nc", "");
+
+        // Copy resource to temp file since my parser methods need it that way.
+        URL file = this.getClass().getClassLoader().getResource("./gcode/circle_test.nc");
+        File tempFile = File.createTempFile("temp", "file");
+        IOUtils.copy(file.openStream(), FileUtils.openOutputStream(tempFile));
+
+        try (IGcodeWriter gcw = new GcodeStreamWriter(output.toFile())) {
+            GcodeParserUtils.processAndExport(gcp, tempFile, gcw);
+        }
+
+        IGcodeStreamReader reader = new GcodeStreamReader(output.toFile(), new DefaultCommandCreator());
+
+        file = this.getClass().getClassLoader().getResource("./gcode/circle_test.nc.processed");
+        Files.lines(Paths.get(file.toURI())).forEach((t) -> {
+            try {
+                GcodeCommand c = reader.getNextCommand();
+                if (c == null) {
+                    Assert.fail("Reached end of gcode reader before end of expected commands.");
+                }
+                Assert.assertEquals(t, c.getCommandString());
+            } catch (IOException ex) {
+                Assert.fail("Unexpected exception.");
+            }
+        });
+        assertEquals(990, reader.getNumRows());
+        output.toFile().delete();
+    }
+
+    @Test
+    public void nonGcodeIgnoresImplicitGcode() throws Exception {
+        GcodeParser gcp = new GcodeParser();
+        gcp.addCommandProcessor(new CommentProcessor());
+        GcodeState initialState = new GcodeState();
+        initialState.currentPoint = new Position(0, 0, 1, MM);
+        initialState.currentMotionMode = Code.G0;
+        List<String> result = gcp.preprocessCommand("M05", initialState);
+        assertEquals(1, result.size());
+        assertEquals("M05", result.get(0));
+    }
+
+    @Test
+    public void doubleParenCommentWithCommentProcessorTest() throws Exception {
+        String command = "(comment (with subcomment) still in the comment) G01 X10";
+        GcodeParser instance = new GcodeParser();
+        instance.addCommandProcessor(new CommentProcessor());
+        List<String> result = instance.preprocessCommand(command, instance.getCurrentState());
+        assertEquals(1, result.size());
+        assertEquals(" G01 X10", result.get(0));
+    }
+
+    @Test
+    public void getBounds_shouldCoverFullArcSweepNotJustEndPoints() throws Exception {
+        // A half circle of radius 0.5" (1" diameter) centered at the origin. The end points alone
+        // would only span (-0.5,0)..(0,-0.5), missing the bulge that reaches +0.5 on both axes.
+        GcodeParser parser = new GcodeParser();
+        parser.addCommand("G17 G20 G90");
+        parser.addCommand("X-0.5 Y0.");
+        parser.addCommand("G1 Z0.");
+
+        parser.addCommand("G2 X0. Y-0.5 I0.5 J0.");
+        parser.addCommand("G2 X-0.5 Y0. I0. J0.5");
+
+        GcodeStats stats = parser.getCurrentStats();
+        // Stats are stored in millimetres: 0.5" = 12.7mm, so the box should be 25.4mm (1") on a side.
+        assertThat(stats.getMin().x).isCloseTo(-12.7, TOLERANCE);
+        assertThat(stats.getMin().y).isCloseTo(-12.7, TOLERANCE);
+        assertThat(stats.getMax().x).isCloseTo(12.7, TOLERANCE);
+        assertThat(stats.getMax().y).isCloseTo(12.7, TOLERANCE);
+    }
+
+    @Test
+    public void getBounds_shouldOnlyCoverEndPointsForStraightMoves() throws Exception {
+        GcodeParser parser = new GcodeParser();
+        parser.addCommand("G21 G90");
+        parser.addCommand("G1 X10 Y5");
+        parser.addCommand("G1 X-3 Y20");
+
+        GcodeStats stats = parser.getCurrentStats();
+        assertThat(stats.getMin().x).isCloseTo(-3, TOLERANCE);
+        assertThat(stats.getMin().y).isCloseTo(5, TOLERANCE);
+        assertThat(stats.getMax().x).isCloseTo(10, TOLERANCE);
+        assertThat(stats.getMax().y).isCloseTo(20, TOLERANCE);
+    }
+
+    @Test
+    public void getBounds_shouldCoverRotationSweepInCartesianSpace() throws Exception {
+        // The tool sits at Z10 (10mm from the X rotation axis) and the A axis rotates 180 degrees.
+        // The wrapped path sweeps a semicircle, reaching Y=10 at 90 degrees, which the start/end
+        // points (Y=0) would miss entirely.
+        GcodeParser parser = new GcodeParser();
+        parser.addCommand("G21 G90");
+        parser.addCommand("G0 X0 Y0 Z10");
+        parser.addCommand("G1 A180");
+
+        GcodeStats stats = parser.getCurrentStats();
+        assertThat(stats.getMin().y).isCloseTo(0, TOLERANCE);
+        assertThat(stats.getMax().y).isCloseTo(10, TOLERANCE);
+        assertThat(stats.getMin().z).isCloseTo(-10, TOLERANCE);
+        assertThat(stats.getMax().z).isCloseTo(10, TOLERANCE);
+    }
+}

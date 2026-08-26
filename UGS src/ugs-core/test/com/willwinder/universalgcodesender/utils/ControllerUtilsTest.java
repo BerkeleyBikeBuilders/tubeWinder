@@ -1,0 +1,289 @@
+/*
+    Copyright 2022-2024 Will Winder
+
+    This file is part of Universal Gcode Sender (UGS).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.willwinder.universalgcodesender.utils;
+
+import com.willwinder.universalgcodesender.IController;
+import com.willwinder.universalgcodesender.communicator.ICommunicator;
+import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
+import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
+import com.willwinder.universalgcodesender.listeners.ControllerStatus;
+import com.willwinder.universalgcodesender.listeners.ControllerStatusBuilder;
+import com.willwinder.universalgcodesender.model.Axis;
+import com.willwinder.universalgcodesender.model.CommunicatorState;
+import com.willwinder.universalgcodesender.model.Position;
+import com.willwinder.universalgcodesender.model.UnitUtils;
+import com.willwinder.universalgcodesender.types.GcodeCommand;
+import static com.willwinder.universalgcodesender.utils.ControllerUtils.getDistanceToSoftLimit;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Test;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+
+public class ControllerUtilsTest {
+
+    @Test
+    public void sendAndWaitForCompletionShouldBlockAndReturnWhenCommandIsDone() throws Exception {
+        IController controller = mock(IController.class);
+        GcodeCommand command = new GcodeCommand("blah");
+
+        AtomicBoolean isDoneBlocking = new AtomicBoolean(false);
+        Thread thread = new Thread(() -> {
+            try {
+                ControllerUtils.sendAndWaitForCompletion(controller, command, 1000);
+                isDoneBlocking.set(true);
+            } catch (Exception e) {
+                fail("Got unwanted exception" + e.getMessage());
+            }
+        });
+        thread.start();
+
+        // Wait for the command to be queued and sent
+        Thread.sleep(100);
+
+        // Simulate that the command has been completed
+        command.setDone(true);
+
+        // Wait for the command event has been processed
+        Thread.sleep(100);
+
+        assertTrue(isDoneBlocking.get());
+    }
+
+    @Test
+    public void sendAndWaitForCompletionShouldTimeOut() {
+        IController controller = mock(IController.class);
+        GcodeCommand command = new GcodeCommand("blah");
+        assertThrows("The command \"blah\" has timed out as it wasn't finished within 100ms", InterruptedException.class, () -> ControllerUtils.sendAndWaitForCompletion(controller, command, 100));
+    }
+
+    @Test
+    public void waitForState_shouldReturnWhenControllerIsInState() throws Exception {
+        IController controller = mock(IController.class);
+        ControllerStatus status = mock(ControllerStatus.class);
+        when(status.getState()).thenReturn(ControllerState.IDLE);
+        when(controller.getControllerStatus()).thenReturn(status);
+
+        ControllerUtils.waitForState(controller, ControllerState.IDLE, Duration.ofSeconds(1));
+
+        verify(controller, atLeastOnce()).getControllerStatus();
+    }
+
+    @Test
+    public void waitForState_shouldBlockUntilControllerReachesState() throws Exception {
+        IController controller = mock(IController.class);
+        ControllerStatus runningStatus = mock(ControllerStatus.class);
+        when(runningStatus.getState()).thenReturn(ControllerState.RUN);
+        ControllerStatus idleStatus = mock(ControllerStatus.class);
+        when(idleStatus.getState()).thenReturn(ControllerState.IDLE);
+        when(controller.getControllerStatus()).thenReturn(runningStatus, runningStatus, idleStatus);
+
+        ControllerUtils.waitForState(controller, ControllerState.IDLE, Duration.ofSeconds(1));
+
+        verify(controller, atLeastOnce()).getControllerStatus();
+    }
+
+    @Test
+    public void waitForState_shouldThrowWhenStateIsNotReachedWithinTimeout() {
+        IController controller = mock(IController.class);
+        ControllerStatus status = mock(ControllerStatus.class);
+        when(status.getState()).thenReturn(ControllerState.RUN);
+        when(controller.getControllerStatus()).thenReturn(status);
+
+        assertThrows(InterruptedException.class, () -> ControllerUtils.waitForState(controller, ControllerState.IDLE, Duration.ofMillis(100)));
+    }
+
+    @Test
+    public void sendAndWaitForCompletionWithRetryShouldRetryOnErrors() throws Exception {
+        IController controller = mock(IController.class);
+        when(controller.isCommOpen()).thenReturn(true);
+
+        // First command will generate an error, the second will succeed
+        doAnswer(answer -> {
+            GcodeCommand gcodeCommand = answer.getArgument(0);
+            if (gcodeCommand.getCommandString().equals("0")) {
+                gcodeCommand.setError(true);
+                gcodeCommand.setDone(true);
+            } else {
+                gcodeCommand.setOk(true);
+                gcodeCommand.setDone(true);
+            }
+            return answer;
+        }).when(controller).sendCommandImmediately(any(GcodeCommand.class));
+
+        // Function that will create new commands and count up
+        AtomicInteger commandNumber = new AtomicInteger();
+        Supplier<? extends GcodeCommand> supplier = (Supplier<GcodeCommand>) () -> {
+            int number = commandNumber.getAndAdd(1);
+            return new GcodeCommand("" + number);
+        };
+
+        GcodeCommand gcodeCommand = ControllerUtils.sendAndWaitForCompletionWithRetry(supplier, controller, 1000, 10, integer -> {});
+
+        verify(controller, times(2)).sendCommandImmediately(any());
+        assertEquals("1", gcodeCommand.getCommandString());
+    }
+
+    @Test
+    public void sendAndWaitForCompletionWithRetryShouldRetryOnTimeout() throws Exception {
+        IController controller = mock(IController.class);
+        when(controller.isCommOpen()).thenReturn(true);
+
+        // First command will time out, the second will succeed
+        doAnswer(answer -> {
+            GcodeCommand gcodeCommand = answer.getArgument(0);
+            if (gcodeCommand.getCommandString().equals("0")) {
+                // Make the first command time out
+                Thread.sleep(300);
+            } else {
+                gcodeCommand.setOk(true);
+                gcodeCommand.setDone(true);
+            }
+            return answer;
+        }).when(controller).sendCommandImmediately(any(GcodeCommand.class));
+
+        // Function that will create new commands and count up
+        AtomicInteger commandNumber = new AtomicInteger();
+        Supplier<? extends GcodeCommand> supplier = (Supplier<GcodeCommand>) () -> {
+            int number = commandNumber.getAndAdd(1);
+            return new GcodeCommand("" + number);
+        };
+
+        GcodeCommand gcodeCommand = ControllerUtils.sendAndWaitForCompletionWithRetry(supplier, controller, 200, 10, integer -> {});
+
+        verify(controller, times(2)).sendCommandImmediately(any());
+        assertEquals("1", gcodeCommand.getCommandString());
+    }
+
+    @Test
+    public void sendAndWaitForCompletionWithWhenDisconnectedShouldReturn() throws Exception {
+        IController controller = mock(IController.class);
+        when(controller.isCommOpen()).thenReturn(false);
+
+        // Function that will create new commands and count up
+        AtomicInteger commandNumber = new AtomicInteger();
+        Supplier<? extends GcodeCommand> supplier = (Supplier<GcodeCommand>) () -> {
+            int number = commandNumber.getAndAdd(1);
+            return new GcodeCommand("" + number);
+        };
+
+        ControllerUtils.sendAndWaitForCompletionWithRetry(supplier, controller, 200, 10, integer -> {});
+        verify(controller, times(0)).sendCommandImmediately(any());
+    }
+
+    @Test
+    public void getCommunicatorStateShouldReturnPausedWhenControllerIdleAndStreaming() {
+        IController controller = mock(IController.class);
+        when(controller.isStreaming()).thenReturn(true);
+        ICommunicator communicator = mock(ICommunicator.class);
+
+        CommunicatorState communicatorState = ControllerUtils.getCommunicatorState(ControllerState.IDLE, controller, communicator);
+
+        assertEquals(CommunicatorState.COMM_SENDING_PAUSED, communicatorState);
+    }
+
+    @Test
+    public void getCommunicatorStateShouldReturnPausedWhenControllerCheckAndStreaming() {
+        IController controller = mock(IController.class);
+        when(controller.isStreaming()).thenReturn(true);
+        ICommunicator communicator = mock(ICommunicator.class);
+        when(communicator.isPaused()).thenReturn(true);
+
+        CommunicatorState communicatorState = ControllerUtils.getCommunicatorState(ControllerState.CHECK, controller, communicator);
+
+        assertEquals(CommunicatorState.COMM_SENDING_PAUSED, communicatorState);
+    }
+
+    @Test
+    public void getDistanceToSoftLimitShouldReturnZeroIfSoftLimitsDisabled() throws FirmwareSettingsException {
+        IController controller = mock(IController.class);
+        IFirmwareSettings firmwareSettings = mock(IFirmwareSettings.class);
+
+        when(controller.getFirmwareSettings()).thenReturn(firmwareSettings);
+        when(firmwareSettings.isSoftLimitsEnabled()).thenReturn(false);
+
+        assertEquals(0.0, getDistanceToSoftLimit(controller, Axis.Z), 0.1);
+    }
+
+    @Test
+    public void getDistanceToSoftLimitShouldReturnThePositiveDistanceToTheSoftLimits() throws FirmwareSettingsException {
+        IController controller = mock(IController.class);
+        IFirmwareSettings firmwareSettings = mock(IFirmwareSettings.class);
+        ControllerStatus controllerStatus = ControllerStatusBuilder.newInstance().setMachineCoord(new Position(10, 10, 10, UnitUtils.Units.MM)).build();
+
+        when(controller.getFirmwareSettings()).thenReturn(firmwareSettings);
+        when(firmwareSettings.isSoftLimitsEnabled()).thenReturn(true);
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+        when(firmwareSettings.getSoftLimit(Axis.Z)).thenReturn(10.0);
+
+        assertEquals(20.0, getDistanceToSoftLimit(controller, Axis.Z), 0.1);
+    }
+
+    @Test
+    public void getDistanceToSoftLimitShouldReturnTheNegativeDistanceToTheSoftLimits() throws FirmwareSettingsException {
+        IController controller = mock(IController.class);
+        IFirmwareSettings firmwareSettings = mock(IFirmwareSettings.class);
+        ControllerStatus controllerStatus = ControllerStatusBuilder.newInstance().setMachineCoord(new Position(10, 10, -20, UnitUtils.Units.MM)).build();
+
+        when(controller.getFirmwareSettings()).thenReturn(firmwareSettings);
+        when(firmwareSettings.isSoftLimitsEnabled()).thenReturn(true);
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+        when(firmwareSettings.getSoftLimit(Axis.Z)).thenReturn(10.0);
+
+        assertEquals(-10.0, getDistanceToSoftLimit(controller, Axis.Z), 0.1);
+    }
+
+    @Test
+    public void getDistanceToSoftLimitShouldReturnConvertPositionsGivenInInches() throws FirmwareSettingsException {
+        IController controller = mock(IController.class);
+        IFirmwareSettings firmwareSettings = mock(IFirmwareSettings.class);
+        ControllerStatus controllerStatus = ControllerStatusBuilder.newInstance().setMachineCoord(new Position(1, 1, -1, UnitUtils.Units.INCH)).build();
+
+        when(controller.getFirmwareSettings()).thenReturn(firmwareSettings);
+        when(firmwareSettings.isSoftLimitsEnabled()).thenReturn(true);
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+        when(firmwareSettings.getSoftLimit(Axis.Z)).thenReturn(10.0);
+
+        assertEquals(-15.4, getDistanceToSoftLimit(controller, Axis.Z), 0.1);
+    }
+
+    @Test
+    public void getDistanceToSoftLimitShouldReturnZeroOnFirmwareSettingsExceptions() throws FirmwareSettingsException {
+        IController controller = mock(IController.class);
+        IFirmwareSettings firmwareSettings = mock(IFirmwareSettings.class);
+
+        when(controller.getFirmwareSettings()).thenReturn(firmwareSettings);
+        when(firmwareSettings.isSoftLimitsEnabled()).thenThrow(new FirmwareSettingsException("An error!"));
+
+        assertEquals(0, getDistanceToSoftLimit(controller, Axis.Z), 0.1);
+    }
+}

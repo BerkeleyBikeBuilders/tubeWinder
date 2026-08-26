@@ -1,0 +1,221 @@
+/*
+    Copyright 2025 Joacim Breiler
+
+    This file is part of Universal Gcode Sender (UGS).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.willwinder.universalgcodesender.fx;
+
+import com.formdev.flatlaf.FlatLightLaf;
+import com.willwinder.universalgcodesender.fx.actions.StartAction;
+import com.willwinder.universalgcodesender.fx.component.MainMenuBar;
+import com.willwinder.universalgcodesender.fx.component.ToolBarMenu;
+import com.willwinder.universalgcodesender.fx.component.drawer.DrawerPane;
+import com.willwinder.universalgcodesender.fx.component.dro.MachineStatusPane;
+import com.willwinder.universalgcodesender.fx.component.jog.JogPane;
+import com.willwinder.universalgcodesender.fx.component.visualizer.Visualizer;
+import com.willwinder.universalgcodesender.fx.component.designer.InspectorPane;
+import com.willwinder.universalgcodesender.fx.model.UgsdWorkspaceContext;
+import com.willwinder.universalgcodesender.services.LookupService;
+import com.willwinder.universalgcodesender.fx.helper.FontRegistry;
+import com.willwinder.universalgcodesender.fx.helper.SplitPaneDividerPersistence;
+import com.willwinder.universalgcodesender.fx.helper.SvgLoader;
+import com.willwinder.universalgcodesender.fx.service.ActionRegistry;
+import com.willwinder.universalgcodesender.fx.service.JogActionRegistry;
+import com.willwinder.universalgcodesender.fx.service.MacroActionService;
+import com.willwinder.universalgcodesender.fx.service.ShortcutService;
+import com.willwinder.universalgcodesender.fx.service.WorkspaceFileLoader;
+import com.willwinder.universalgcodesender.fx.service.WorkspaceManager;
+import com.willwinder.universalgcodesender.fx.settings.Settings;
+import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.model.GUIBackend;
+import com.willwinder.universalgcodesender.pendantui.PendantUI;
+import com.willwinder.universalgcodesender.utils.SettingsFactory;
+import com.willwinder.universalgcodesender.utils.ThreadHelper;
+import com.willwinder.universalgcodesender.utils.Version;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.SplitPane;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+
+import javax.swing.UIManager;
+import java.io.File;
+import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+public class Main extends Application {
+    private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
+    private SplitPane motionSplitPane;
+    private SplitPane contentSplitPane;
+    private StackPane contentPanel;
+
+    @Override
+    public void init() throws Exception {
+        GUIBackend backend = new GUIBackend();
+        backend.applySettings(SettingsFactory.loadSettings());
+        LookupService.register(backend);
+        LookupService.register(new WorkspaceFileLoader());
+        Localization.initialize(backend.getSettings().getLanguage());
+
+        try {
+            FlatLightLaf.setup();
+            UIManager.setLookAndFeel(new FlatLightLaf());
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not load the look and feel", e);
+        }
+
+        if (Settings.getInstance().pendantAutostartProperty().get()) {
+            ThreadHelper.invokeLater(() -> {
+                PendantUI pendantUI = new PendantUI(backend);
+                pendantUI.start();
+            }, 4000);
+        }
+
+        MacroActionService.registerMacros();
+
+        JogActionRegistry.registerActions();
+    }
+
+    @Override
+    public void start(Stage primaryStage) {
+        registerListeners(primaryStage);
+
+        MainMenuBar mainMenuBar = new MainMenuBar();
+        ToolBarMenu toolBarMenu = new ToolBarMenu();
+        createLeftPane();
+        createContentPanel();
+        createContentPane();
+        VBox.setVgrow(contentSplitPane, Priority.ALWAYS);
+
+        VBox root = new VBox();
+        Scene scene = new Scene(root);
+
+        ShortcutService.registerListener(scene);
+        FontRegistry.registerFonts();
+
+        scene.getStylesheets().add(Objects.requireNonNull(Main.class.getResource("/styles/root.css")).toExternalForm());
+        scene.getStylesheets().add(Objects.requireNonNull(Main.class.getResource("/styles/menu-bar.css")).toExternalForm());
+        root.getChildren().addAll(mainMenuBar, toolBarMenu, contentSplitPane);
+
+        primaryStage.setTitle("Universal G-code Sender - " + Version.getVersion());
+        SvgLoader.loadIcon("icons/ugs.svg", 128).ifPresent(icon -> primaryStage.getIcons().add(icon));
+        primaryStage.setScene(scene);
+        primaryStage.show();
+        registerShortCuts(scene);
+
+        Parameters params = getParameters();
+        if (!params.getUnnamed().isEmpty()) {
+            try {
+                File file = new File(params.getUnnamed().get(0));
+                WorkspaceManager.getInstance().openWorkspace(file);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            openDefaultWorkspace();
+        }
+    }
+
+    /**
+     * Opens an empty UGSD design workspace when the application is started without a file argument,
+     * so the designer is ready to use straight away.
+     */
+    private void openDefaultWorkspace() {
+        try {
+            UgsdWorkspaceContext workspace = new UgsdWorkspaceContext(null);
+            WorkspaceManager.getInstance().setWorkspace(workspace);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Could not open the default design workspace", e);
+        }
+    }
+
+    private void registerWindowBoundsListeners(Stage primaryStage) {
+        primaryStage.widthProperty().addListener((observable, oldValue, newValue) -> Settings.getInstance().windowWidthProperty().set(newValue.doubleValue()));
+        primaryStage.heightProperty().addListener((observable, oldValue, newValue) -> Settings.getInstance().windowHeightProperty().set(newValue.doubleValue()));
+        primaryStage.xProperty().addListener((observable, oldValue, newValue) -> Settings.getInstance().windowPositionXProperty().set(newValue.doubleValue()));
+        primaryStage.yProperty().addListener((observable, oldValue, newValue) -> Settings.getInstance().windowPositionYProperty().set(newValue.doubleValue()));
+    }
+
+    private void registerListeners(Stage primaryStage) {
+        primaryStage.setOnShown(event -> {
+            primaryStage.setX(Settings.getInstance().windowPositionXProperty().get());
+            primaryStage.setY(Settings.getInstance().windowPositionYProperty().get());
+            primaryStage.setWidth(Settings.getInstance().windowWidthProperty().get());
+            primaryStage.setHeight(Settings.getInstance().windowHeightProperty().get());
+            registerWindowBoundsListeners(primaryStage);
+
+            Platform.runLater(() -> {
+                SplitPaneDividerPersistence.install(motionSplitPane, 0, Settings.getInstance().windowDividerLeftProperty());
+                SplitPaneDividerPersistence.install(contentSplitPane, 0, Settings.getInstance().windowDividerContentProperty());
+                SplitPaneDividerPersistence.install(contentSplitPane, 1, Settings.getInstance().windowDividerInspectorProperty());
+            });
+        });
+
+        primaryStage.setOnCloseRequest(event -> {
+            SettingsFactory.saveSettings();
+            Platform.exit();
+            System.exit(0);
+        });
+    }
+
+    private void createContentPanel() {
+        contentPanel = new StackPane();
+        contentPanel.getChildren().add(new Visualizer());
+
+        DrawerPane drawerPane = new DrawerPane();
+        contentPanel.getChildren().add(drawerPane);
+        StackPane.setAlignment(drawerPane, Pos.BOTTOM_RIGHT);
+    }
+
+
+    private void createContentPane() {
+        contentSplitPane = new SplitPane();
+        contentSplitPane.setMinWidth(200);
+        contentSplitPane.setOrientation(Orientation.HORIZONTAL);
+        contentSplitPane.getItems().addAll(motionSplitPane, contentPanel);
+        SplitPane.setResizableWithParent(contentSplitPane, false);
+        new InspectorPane(contentSplitPane);
+    }
+
+    private void createLeftPane() {
+        motionSplitPane = new SplitPane();
+
+        motionSplitPane.setOrientation(Orientation.VERTICAL);
+        motionSplitPane.getItems().addAll(new MachineStatusPane(), new JogPane());
+        motionSplitPane.setMinWidth(200);
+        SplitPane.setResizableWithParent(motionSplitPane, false);
+    }
+
+    private void registerShortCuts(Scene scene) {
+        KeyCombination kc = new KeyCodeCombination(KeyCode.R, KeyCombination.CONTROL_DOWN);
+        scene.getAccelerators().put(kc, () -> ActionRegistry.getInstance()
+                .getAction(StartAction.class.getCanonicalName())
+                .ifPresent(a -> a.handle(null)));
+    }
+
+    public static void main(String[] args) {
+        launch(Main.class, args);
+    }
+}

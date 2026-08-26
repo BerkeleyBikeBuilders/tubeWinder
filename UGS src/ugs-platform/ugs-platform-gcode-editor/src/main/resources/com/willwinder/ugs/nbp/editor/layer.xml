@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE filesystem PUBLIC "-//NetBeans//DTD Filesystem 1.2//EN" "http://www.netbeans.org/dtds/filesystem-1_2.dtd">
+<filesystem>
+    <folder name="Editors">
+        <folder name="text">
+            <folder name="xgcode">
+                <attr name="SystemFileSystem.localizingBundle" stringvalue="com.willwinder.ugs.nbp.editor.Bundle"/>
+                <folder name="FontsColors">
+                    <folder name="NetBeans">
+                        <folder name="Defaults">
+                            <file name="FontAndColors.xml" url="FontAndColors.xml">
+                                <attr name="SystemFileSystem.localizingBundle"
+                                      stringvalue="com.willwinder.ugs.nbp.editor.Bundle"/>
+                            </file>
+                        </folder>
+                    </folder>
+                </folder>
+            </folder>
+        </folder>
+    </folder>
+
+    <folder name="OptionsDialog">
+        <folder name="PreviewExamples">
+            <folder name="text">
+                <file name="xgcode" url="GcodeTemplate.gcode"/>
+            </folder>
+        </folder>
+    </folder>
+
+    <filesystem>
+        <folder name="OptionsExport">
+            <folder name="UGS">
+                <attr name="displayName" stringvalue="UGS"/>
+                <file name="Gcode editor">
+                    <attr name="displayName" stringvalue="Gcode editor"/>
+                    <attr name="include" stringvalue="config/Preferences/com/willwinder/ugs/nbp/editor.properties"/>
+                </file>
+            </folder>
+        </folder>
+    </filesystem>
+</filesystem>

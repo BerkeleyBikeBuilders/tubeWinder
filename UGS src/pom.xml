@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.willwinder.universalgcodesender</groupId>
+  <artifactId>ugs-parent</artifactId>
+  <version>${revision}${changelist}</version>
+  <packaging>pom</packaging>
+
+  <inceptionYear>2012</inceptionYear>
+
+  <name>ugs-parent</name>
+  <description>Universal Gcode Sender Library</description>
+  <url>https://github.com/winder/Universal-G-Code-Sender/tree/master</url>
+
+  <scm>
+    <connection>scm:git:git@github.com:winder/Universal-G-Code-Sender.git</connection>
+    <developerConnection>scm:git:git@github.com:winder/Universal-G-Code-Sender.git</developerConnection>
+    <url>https://github.com/winder/Universal-G-Code-Sender/tree/master</url>
+  </scm>
+
+  <licenses>
+    <license>
+      <name>GNU General Public License, version 3 (GPL-3.0)</name>
+      <url>https://opensource.org/licenses/GPL-3.0</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Will Winder</name>
+      <email>wwinder.unh@gmail.com</email>
+    </developer>
+  </developers>
+
+  <properties>
+    <revision>2.0</revision>
+    <changelist>-SNAPSHOT</changelist>
+
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <jetty.version>12.0.3</jetty.version>
+    <jersey.version>3.1.5</jersey.version>
+    <swagger.version>2.2.22</swagger.version>
+    <swagger-ui.version>5.17.14</swagger-ui.version>
+    <gluegen.version>2.6.0</gluegen.version>
+    <jogl.version>2.6.0</jogl.version>
+    <miglayout.version>11.4.2</miglayout.version>
+    <guava.version>33.0.0-jre</guava.version>
+    <jserialcomm.version>2.11.0</jserialcomm.version>
+    <commons-lang3.version>3.12.0</commons-lang3.version>
+    <commons-io.version>2.14.0</commons-io.version>
+    <commons-csv.version>1.9.0</commons-csv.version>
+    <gson.version>2.10.1</gson.version>
+    <jmf.version>2.1.1e</jmf.version>
+    <zxing.version>3.5.3</zxing.version>
+    <qrgen.version>1.4</qrgen.version>
+    <jacoco.version>0.8.7</jacoco.version>
+    <swing-layout.version>1.0.3</swing-layout.version>
+    <ugs.surefire.version>3.0.0-M5</ugs.surefire.version>
+    <download-maven-plugin.version>1.3.0</download-maven-plugin.version>
+    <mockito.version>5.12.0</mockito.version>
+    <batik.version>1.19</batik.version>
+    <jts.version>1.20.0</jts.version>
+    <jsvg.version>1.7.1</jsvg.version>
+    <classgraph.version>4.8.179</classgraph.version>
+    <netbeans.version>RELEASE290</netbeans.version>
+    <ugs.maven-resources-plugin.version>3.1.0</ugs.maven-resources-plugin.version>
+    <ugs.maven-jar-plugin.version>3.2.0</ugs.maven-jar-plugin.version>
+    <ugs.flatten-maven-plugin.version>1.2.2</ugs.flatten-maven-plugin.version>
+    <ugs.junit.version>4.13.2</ugs.junit.version>
+    <ugs.hamcrest-core.version>2.2</ugs.hamcrest-core.version>
+    <ugs.maven-shade-plugin.version>3.5.3</ugs.maven-shade-plugin.version>
+    <ugs.progressbar.version>0.10.1</ugs.progressbar.version>
+    <ugs.commons-cli.version>1.4</ugs.commons-cli.version>
+    <ugs.easymock.version>5.2.0</ugs.easymock.version>
+    <ugs.maven-assembly-plugin.version>2.5.3</ugs.maven-assembly-plugin.version>
+    <ugs.snakeyaml.version>3.0.1</ugs.snakeyaml.version>
+    <ugs.nashorn-core.version>15.4</ugs.nashorn-core.version>
+    <ugs.jackson.version>2.15.3</ugs.jackson.version>
+
+    <!-- Sets the timestamp format -->
+    <maven.build.timestamp.format>yyyy-MM-dd</maven.build.timestamp.format>
+    <timestamp>${maven.build.timestamp}</timestamp>
+
+    <ugs.maven-compiler-plugin.version>3.6.1</ugs.maven-compiler-plugin.version>
+    <ugs.jvm.version>17</ugs.jvm.version>
+    <ugs.kotlin.version>1.3.61</ugs.kotlin.version>
+
+    <!-- cloud storage plugin -->
+    <ugs.s3-filesystem.version>2.2.2</ugs.s3-filesystem.version>
+    <ugs.minio.version>6.0.11</ugs.minio.version>
+    <ugs.s3mock.version>0.2.4</ugs.s3mock.version>
+    <!-- sub-dependency of s3 mocking library -->
+    <ugs.commons-logging.version>1.2</ugs.commons-logging.version>
+
+    <maven.compiler.source>${ugs.jvm.version}</maven.compiler.source>
+    <maven.compiler.target>${ugs.jvm.version}</maven.compiler.target>
+  </properties>
+
+  <modules>
+    <module>ugs-core</module>
+    <module>ugs-pendant</module>
+    <module>ugs-classic</module>
+    <module>ugs-designer</module>
+    <module>ugs-platform</module>
+    <module>ugs-cli</module>
+    <module>ugs-fx</module>
+  </modules>
+
+  <!-- global dependencies -->
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.jetbrains.kotlin</groupId>
+          <artifactId>kotlin-maven-plugin</artifactId>
+          <version>${ugs.kotlin.version}</version>
+          <executions>
+            <execution>
+              <id>compile</id>
+              <phase>compile</phase>
+              <goals>
+                <goal>compile</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>test-compile</id>
+              <phase>test-compile</phase>
+              <goals>
+                <goal>test-compile</goal>
+              </goals>
+            </execution>
+          </executions>
+          <configuration>
+            <jvmTarget>${ugs.jvm.version}</jvmTarget>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${ugs.maven-compiler-plugin.version}</version>
+          <configuration>
+            <source>${ugs.jvm.version}</source>
+            <target>${ugs.jvm.version}</target>
+            <debug>true</debug>
+            <debuglevel>lines,vars,source</debuglevel>
+          </configuration>
+          <executions>
+            <!-- Make sure to compile Kotlin first (required if calling Kotlin code from Java) -->
+            <execution>
+              <id>default-compile</id>
+              <phase>none</phase>
+            </execution>
+            <execution>
+              <id>default-testCompile</id>
+              <phase>none</phase>
+            </execution>
+
+            <execution>
+              <id>compile</id>
+              <phase>compile</phase>
+              <goals>
+                <goal>compile</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>testCompile</id>
+              <phase>test-compile</phase>
+              <goals>
+                <goal>testCompile</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>com.googlecode.maven-download-plugin</groupId>
+          <artifactId>download-maven-plugin</artifactId>
+          <version>${download-maven-plugin.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <groupId>org.apache.maven.plugins</groupId>
+        <version>${ugs.surefire.version}</version>
+      </plugin>
+
+      <!-- Code coverage -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- For generating POM files with the revision number -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>flatten-maven-plugin</artifactId>
+        <version>${ugs.flatten-maven-plugin.version}</version>
+        <configuration>
+          <updatePomFile>true</updatePomFile>
+          <flattenMode>resolveCiFriendliesOnly</flattenMode>
+        </configuration>
+        <executions>
+          <execution>
+            <id>flatten</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>flatten</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>flatten.clean</id>
+            <phase>clean</phase>
+            <goals>
+              <goal>clean</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+        <version>${ugs.surefire.version}</version>
+      </plugin>
+     </plugins>
+  </reporting>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>${ugs.junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+      <type>jar</type>
+    </dependency>
+    <dependency>
+      <groupId>org.hamcrest</groupId>
+      <artifactId>hamcrest-core</artifactId>
+      <version>${ugs.hamcrest-core.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.27.7</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.easymock</groupId>
+      <artifactId>easymock</artifactId>
+      <version>${ugs.easymock.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <profiles>
+    <profile>
+      <!-- Notes about deploying.
+           This is extremely hacky, but for now to deploy you need to manually
+           edit the pom files in a couple specific ways.
+           1. Set the version in this file, and in ugs-core/pom.xml
+           2. Comment out the 'ugs-platform' module in this file.
+           3. Run mvn deploy -Prelease,ossrh -DskipTests=true
+           -->
+      <id>release</id>
+
+      <distributionManagement>
+        <snapshotRepository>
+          <id>ossrh</id>
+          <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+          <id>ossrh</id>
+          <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+      </distributionManagement>
+
+      <build>
+        <plugins>
+          <!-- staging for OSSRH -->
+          <plugin>
+            <groupId>org.sonatype.plugins</groupId>
+            <artifactId>nexus-staging-maven-plugin</artifactId>
+            <version>1.6.8</version>
+            <extensions>true</extensions>
+            <configuration>
+              <serverId>ossrh</serverId>
+              <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+              <autoReleaseAfterClose>true</autoReleaseAfterClose>
+            </configuration>
+          </plugin>
+
+          <!-- generate sources jar -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.2.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- generate javadoc jar -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+
+          <!-- gpg signing -->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.0.1</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

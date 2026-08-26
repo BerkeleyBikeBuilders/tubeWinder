@@ -1,0 +1,105 @@
+/*
+    Copyright 2026 Joacim Breiler
+
+    This file is part of Universal Gcode Sender (UGS).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.willwinder.ugs.nbp.core.control;
+
+import com.willwinder.universalgcodesender.MacroHelper;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
+import com.willwinder.universalgcodesender.model.BackendAPI;
+import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.SettingChangedEvent;
+import com.willwinder.universalgcodesender.services.LookupService;
+import com.willwinder.universalgcodesender.types.Macro;
+import com.willwinder.universalgcodesender.utils.GUIHelpers;
+import org.apache.commons.lang3.StringUtils;
+import org.openide.util.Exceptions;
+
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
+import java.io.Serializable;
+
+public class MacroAction extends AbstractAction implements Serializable {
+    private transient BackendAPI backend;
+    private Macro macro;
+
+    /**
+     * Empty constructor to be used for serialization
+     */
+    public MacroAction() {
+    }
+
+    public MacroAction(Macro macro) {
+        this.macro = macro;
+        this.backend = getBackend();
+        updateMacroName();
+        setEnabled(isEnabled());
+    }
+
+    private BackendAPI getBackend() {
+        if (backend == null) {
+            backend = LookupService.lookup(BackendAPI.class);
+            backend.addUGSEventListener(this::onEvent);
+        }
+        return backend;
+    }
+
+    private void onEvent(UGSEvent event) {
+        if (event instanceof ControllerStateEvent) {
+            setEnabled(isEnabled());
+        } else if (event instanceof SettingChangedEvent && macro != null) {
+            backend.getSettings().getMacros().stream().filter(m -> StringUtils.equalsIgnoreCase(m.getUuid(), macro.getUuid())).findFirst().ifPresent(m -> {
+                macro = m;
+                updateMacroName();
+            });
+        }
+    }
+
+    private void updateMacroName() {
+        String name = macro.getName();
+        putValue(NAME, name);
+        putValue("menuText", name);
+
+        if (StringUtils.isNotEmpty(macro.getDescription())) {
+            putValue(Action.SHORT_DESCRIPTION, macro.getDescription());
+        }
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (macro == null || macro.getGcode() == null) {
+            return;
+        }
+
+        EventQueue.invokeLater(() -> {
+            try {
+                MacroHelper.executeCustomGcode(macro.getGcode(), getBackend());
+            } catch (Exception ex) {
+                GUIHelpers.displayErrorDialog(ex.getMessage());
+                Exceptions.printStackTrace(ex);
+            }
+        });
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return getBackend().getControllerState() == ControllerState.IDLE;
+    }
+}
