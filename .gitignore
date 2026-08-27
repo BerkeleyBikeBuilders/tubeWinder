@@ -1,0 +1,6 @@
+target/
+*.class
+*.gcode
+.DS_Store
+TubeWinder.jar
+dist/

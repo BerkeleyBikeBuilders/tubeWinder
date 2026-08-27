@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.berkeleybikebuilders</groupId>
+    <artifactId>tubewinder-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>tubewinder-ui</artifactId>
+  <packaging>jar</packaging>
+
+  <name>Tube Winder UI</name>
+  <description>
+    Desktop application for the filament winder. Swing, laid out after UGS Classic: a machine
+    toolbar across the top, winding parameters and machine controls down the left, visualizer on
+    the right.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.berkeleybikebuilders</groupId>
+      <artifactId>tubewinder-backend</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>com.berkeleybikebuilders.tubewinder.ui.TubeWinderApp</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
