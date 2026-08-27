@@ -1,4 +1,4 @@
-[![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 # tubeWinder
 
@@ -103,3 +103,13 @@ The sender is not real yet: connecting runs a simulator that narrates what the m
 
 Generator v7, the Python in `prev versions/`, is the source of truth the backend was ported from.
 What changed and what still needs measuring is in [`backend/README.md`](backend/README.md).
+
+## License
+
+GPL v3, the same as [UGS](https://github.com/winder/Universal-G-Code-Sender), whose layout this
+borrows and whose sender it will eventually use. Anyone can use, modify and redistribute it;
+changes stay open.
+
+The runtime bundled in `release/TubeWinder-win64.zip` is Eclipse Temurin, GPLv2 with the Classpath
+Exception, which is why bundling it does not affect anything else. Its licences travel with it in
+`runtime\legal`.
