@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tube Winder</title>
+<meta name="description" content="G-code slicer and control software for the Berkeley Bike Builders filament winder.">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #16191d;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #1565c0;
+    --accent-hover: #0d47a1;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16191d;
+      --fg: #e8eaed;
+      --muted: #9aa0a6;
+      --line: #2b3036;
+      --accent: #4a9eff;
+      --accent-hover: #6cb2ff;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 64px 16px 48px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    justify-content: center;
+  }
+
+  main {
+    width: 100%;
+    max-width: 560px;
+    text-align: center;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 40px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+
+  .tagline {
+    margin: 10px 0 36px;
+    color: var(--muted);
+    font-size: 16px;
+  }
+
+  .photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    margin-bottom: 36px;
+  }
+
+  .download {
+    display: inline-block;
+    padding: 14px 32px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background 0.15s ease;
+  }
+
+  .download:hover,
+  .download:focus-visible {
+    background: var(--accent-hover);
+  }
+
+  .meta {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  footer a {
+    color: inherit;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tube Winder</h1>
+  <p class="tagline">G-code slicer and control software for the Bike Builders filament winder.</p>
+
+  <img class="photo" src="winder.jpg" alt="The Bike Builders filament winder"
+       onerror="this.remove()">
+
+  <a class="download"
+     href="https://github.com/BerkeleyBikeBuilders/tubeWinder/releases/latest/download/TubeWinder-win64.zip">
+    Download latest
+  </a>
+  <p class="meta">Windows &middot; extract and run, nothing to install</p>
+
+  <footer>
+    <a href="https://github.com/BerkeleyBikeBuilders/tubeWinder">Source on GitHub</a>
+  </footer>
+</main>
+</body>
+</html>
