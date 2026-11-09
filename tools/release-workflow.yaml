@@ -1,0 +1,107 @@
+name: Build Release
+
+# Copied from the shape UGS uses: push a version tag, CI builds the downloads and attaches them
+# to the GitHub Release. Nobody builds anything locally, and nobody installing the app needs
+# anything on their machine.
+#
+# UGS builds its Windows zip on a Linux runner, because its packaging is "download a JRE, lay out
+# a folder, zip it". Ours runs on Windows because jpackage only produces a native launcher for the
+# platform it runs on, and a real TubeWinder.exe is worth the difference. The result is the same
+# for whoever downloads it.
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# produces, on the release for that tag:
+#   TubeWinder-0.2.0.exe    installer; desktop shortcut, Start menu entry, uninstaller
+#   TubeWinder-win64.zip    portable folder, extract and run, the way UGS ships
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (no tag, nothing is published)'
+        required: false
+        default: '0.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    if: github.repository_owner == 'BerkeleyBikeBuilders'
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Resolve version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Building version $VERSION"
+
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          $have = (Get-Command iscc.exe -ErrorAction SilentlyContinue) -or
+                  (Get-ChildItem 'C:\Program Files (x86)\Inno Setup*\ISCC.exe' -ErrorAction SilentlyContinue)
+          if (-not $have) {
+            Write-Host 'Inno Setup not on the runner image; installing.'
+            choco install innosetup -y --no-progress
+          } else {
+            Write-Host 'Inno Setup already present.'
+          }
+
+      - name: Build installer
+        shell: pwsh
+        run: .\tools\package-app.ps1 -AppVersion $env:VERSION
+
+      - name: Build portable folder
+        shell: pwsh
+        run: .\tools\package-app.ps1 -Type portable -AppVersion $env:VERSION
+
+      - name: Zip the portable folder
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\TubeWinder `
+                           -DestinationPath dist\TubeWinder-win64.zip `
+                           -CompressionLevel Optimal
+          Get-ChildItem dist | Format-Table Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}
+
+      # So a workflow_dispatch run still gives you something to test with.
+      - name: Keep the builds as run artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tubewinder-win64
+          path: |
+            dist/TubeWinder-*.exe
+            dist/TubeWinder-win64.zip
+          if-no-files-found: error
+
+      - name: Upload binaries to the release
+        if: github.ref_type == 'tag'
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "dist/TubeWinder-*.exe;dist/TubeWinder-win64.zip"
+          tag_name: ${{ github.ref_name }}
+          overwrite: true
+          # UGS marks theirs prerelease, which suits a project that also ships nightlies.
+          # Ours stays a normal release so that /releases/latest/download keeps working and the
+          # site's download button can point straight at the file.
+          prerelease: false

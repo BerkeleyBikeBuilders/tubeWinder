@@ -45,28 +45,47 @@ It lists every Java installation, its version, and which one it picked.
 
 ### Giving it to someone else
 
-Hand them [`release/TubeWinder-win64.zip`](release/README.md). They extract the folder and
-double-click `TubeWinder.bat`. Nothing to install, no Java needed: a complete Java 21 runtime is
-inside the zip, the same way UGS ships its own. About 50 MB.
+Push a version tag. That is the whole process:
 
-Refresh it after changes with:
-
-```
-powershell -ExecutionPolicy Bypass -File .\tools\make-bundle.ps1
+```bash
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
-It does not update itself, so rebuild it whenever the club should get changes.
+GitHub Actions builds both downloads and attaches them to that release:
 
-### Building a native .exe instead
+| File | What it is |
+| --- | --- |
+| `TubeWinder-<version>.exe` | Installer. Desktop shortcut, Start menu entry under Bike Builders, uninstaller. |
+| `TubeWinder-win64.zip` | Portable folder, extract and run, the way UGS ships. |
+
+Both carry their own Java runtime, so whoever downloads needs nothing installed. The site's
+download button points at the releases page, so a new release needs no site change.
+
+This is lifted from how UGS releases: tag, CI builds, artifacts land on the release, nobody builds
+anything locally. See [`.github/workflows/release.yaml`](.github/workflows/release.yaml). It also
+runs on demand from the Actions tab if you want a build without tagging; that one keeps the files
+as run artifacts and publishes nothing.
+
+### Building one locally
+
+Only needed to test a build before tagging. CI does this for real releases.
 
 ```
-powershell -ExecutionPolicy Bypass -File .\tools\package-app.ps1
+powershell -ExecutionPolicy Bypass -File .\tools\package-app.ps1                  # installer
+powershell -ExecutionPolicy Bypass -File .\tools\package-app.ps1 -Type portable   # folder + exe
 ```
 
-Builds `dist\TubeWinder\TubeWinder.exe`, a real Windows application rather than a folder with a
-`.bat` in it. Same idea as the zip above, slightly more polished, but it needs a full JDK with
-`jpackage` on the machine doing the building. The runtime inside IntelliJ usually has no `jpackage`;
-the script says so if that is what you have. The zip is the one to use until that matters.
+Wants a full JDK with `jpackage` (the runtime inside IntelliJ has none), and for the installer,
+Inno Setup. The script checks for both and names which is missing.
+
+```
+winget install --id EclipseAdoptium.Temurin.21.JDK -e
+winget install --id JRSoftware.InnoSetup -e
+```
+
+Installing a new version upgrades the old one in place, because the installer carries a fixed
+upgrade GUID. The version comes from the tag, or from `-AppVersion` locally.
 
 ### Or from IntelliJ
 
@@ -110,6 +129,5 @@ GPL v3, the same as [UGS](https://github.com/winder/Universal-G-Code-Sender), wh
 borrows and whose sender it will eventually use. Anyone can use, modify and redistribute it;
 changes stay open.
 
-The runtime bundled in `release/TubeWinder-win64.zip` is Eclipse Temurin, GPLv2 with the Classpath
-Exception, which is why bundling it does not affect anything else. Its licences travel with it in
-`runtime\legal`.
+The Java runtime bundled into the installer is Eclipse Temurin, GPLv2 with the Classpath Exception,
+which is why bundling it does not affect anything else. Its licences are installed alongside it.

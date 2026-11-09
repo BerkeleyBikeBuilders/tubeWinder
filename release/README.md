@@ -1,32 +1,41 @@
 # release
 
-`TubeWinder-win64.zip` is the standalone build for the club.
+What the club downloads.
 
-Extract the whole `TubeWinder` folder out of it, double-click `TubeWinder.bat`, done. Nothing needs
-to be installed and no Java is required on the machine: a complete Java 21 runtime sits in the
-`runtime` folder inside, the same way UGS ships its own `jdk` folder.
+## The installer
 
-About 50 MB, roughly 150 MB extracted.
+`TubeWinder-<version>.exe` installs the app, puts a shortcut on the desktop and an entry in the
+Start menu under Bike Builders, and registers an uninstaller in Add or Remove Programs. Nothing
+needs to be installed first, not even Java: a complete Java 21 runtime is built in.
 
-## Refreshing it
+It installs per user, so Windows does not ask for an admin password. Installing a newer version
+upgrades the old one in place.
+
+Build a fresh one with:
 
 ```
-powershell -ExecutionPolicy Bypass -File .\tools\make-bundle.ps1
+powershell -ExecutionPolicy Bypass -File .\tools\package-app.ps1
 ```
 
-That rebuilds the jar, downloads the Windows runtime once into `target\`, lays out the folder and
-rezips it. The launcher and the readme that go inside come from `tools\bundle-launcher.bat` and
-`tools\bundle-readme.txt`, so edit those rather than anything inside the zip.
+It lands in `dist\`, which is gitignored. Attach it to a GitHub Release rather than committing it,
+and the download button on the site finds it automatically.
 
-Rebuild this whenever you want the club to get changes; it does not update itself. On your own
-machine use `TubeWinder.bat` at the top of the repo instead, which rebuilds every time you pull.
+## TubeWinder-win64.zip
 
-## Why a zip in the repo
+The older portable bundle: extract the folder, double-click `TubeWinder.bat`. Superseded by the
+installer, kept because the v0.1.0 release points at it. `tools\make-bundle.ps1` rebuilds it.
 
-So that "download the repo, extract, run" works for someone who has never installed a developer
-tool. The honest downside is that a 50 MB binary lives in git history forever and every clone pays
-for it. If that starts to hurt, the alternative is a GitHub Release: same zip, attached to a tag,
-out of the repo itself.
+For a portable build with a real exe instead of a .bat, which is the shape UGS ships:
+
+```
+powershell -ExecutionPolicy Bypass -File .\tools\package-app.ps1 -Type portable
+```
+
+## Why not commit the binaries
+
+A 50 MB file in git is paid for by every clone, forever. Releases are the right home: same download
+experience, no repo weight. The site's download button points at the releases page, so a new release
+needs no site change.
 
 The bundled runtime is Eclipse Temurin, redistributed under GPLv2 with the Classpath Exception.
-Its licence files travel with it in `runtime\legal`.
+Its licence files travel with it.
